@@ -104,6 +104,9 @@ class PangenomeSchematic:
     def fasta_filename(self, nth_file):
         return f'seq_chunk{self.pad_file_nr(nth_file)}_bin{self.bin_width}.fa'
 
+    def ttl_filename(self, nth_file):
+        return f'seq_chunk{self.pad_file_nr(nth_file)}_bin{self.bin_width}.ttl'
+
     def write_index_file(self, folder, bin2file_mapping):
         """Also write the file2bin mapping into a master json file
         eventually, this could have one list per bin size,

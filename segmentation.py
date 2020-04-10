@@ -10,9 +10,12 @@ Output format
 from typing import List, Tuple, Set, Dict
 from pathlib import Path as osPath, PurePath
 from datetime import datetime
+
+from rdflib import Literal
 from sortedcontainers import SortedDict
 from DNASkittleUtils.Contigs import Contig, read_contigs, write_contigs_to_file
 
+from matrixcomponent import ontology
 from matrixcomponent.matrix import Path, Component, LinkColumn, Bin
 from matrixcomponent.PangenomeSchematic import PangenomeSchematic
 import matrixcomponent.utils as utils
@@ -291,6 +294,74 @@ def write_fasta_files(odgi_fasta, output_folder: Path, schematic: PangenomeSchem
         write_contigs_to_file(c, chunk)
 
 
+# generic method
+def get(d : dict, key, ttype : type):
+    if key not in d:
+        val = ttype()
+        d.setdefault(key, val)
+    val = d.get(key)
+    return val
+
+
+def write_ttl_files(folder, ttl_schema_file, schematic: PangenomeSchematic):
+    os.makedirs(folder, exist_ok=True)  # make directory for ttl files
+
+    partitions, bin2file_mapping = schematic.split(args.cells_per_file)
+
+    from rdflib import Graph, Namespace, URIRef
+
+
+    part = partitions[0]
+
+    # helper container to map the real objects to the ontology ones
+    region_dict = dict()
+    position_dict = dict()
+
+    # going from top to bottom
+    zoom_level = ontology.ZoomLevel
+    zoom_level.zoomFactor = part.bin_width
+    for c in part.components:
+        row_dict = dict()
+        bin_dict = dict()
+        comp = ontology.Component()
+        for bins in c.matrix:
+            for bin in bins:
+                if type(bin) is not Bin:
+                    continue
+
+                row = ontology.Row #  Bin is unhashable .... get(row_dict, bin, ontology.Row)
+                row.positionPercent  = bin.coverage
+                row.inversionPercent = bin.inversion
+                row.rowRegion = []
+                r = [bin.nucleotide_ranges, bin.nucleotide_ranges+1]
+                #for r in bin.nucleotide_ranges:
+                position_begin = get(position_dict, r[0], ontology.Position)
+                position_end   = get(position_dict, r[1], ontology.Position)
+                region = get(region_dict, str(r[0]) + '-' + str(r[1]), ontology.Region)
+                region.begin = position_begin
+                region.end   = position_end
+                row.rowRegion.append(region)
+
+        # put the collected rows and bins to the component container
+        for ibin in bin_dict.values():
+            comp.bins.append(ibin)
+
+        for irow in row_dict.values():
+            comp.rows.append(irow)
+
+    # TODO: how do people do this???
+    g = Graph()
+    g.load(ttl_schema_file, format="turtle")
+    uri_ref = URIRef("http://biohackathon.org/resource/vg")
+    ns = Namespace("vg")
+
+    g.add((uri_ref, uri_ref, Literal(zoom_level)))
+
+    p = folder.joinpath(part.ttl_filename)
+    with p.open('w') as ttl:
+        ttl.write(g.serialize(format='turtle').decode("utf-8"))
+
+
 def get_arguments():
     """Create the command line interface and return the command line arguments
 
@@ -363,6 +434,7 @@ def main():
     if args.fasta:  # optional
         write_fasta_files(args.fasta, args.output_folder, schematic)
 
+    write_ttl_files(args.output_folder.joinpath("-ttl"), "vg.ttl", schematic)
 
 if __name__ == '__main__':
     main()
