@@ -351,11 +351,10 @@ def write_ttl_files(folder, ttl_schema_file, schematic: PangenomeSchematic):
 
     # TODO: how do people do this???
     g = Graph()
-    g.load(ttl_schema_file, format="turtle")
-    uri_ref = URIRef("http://biohackathon.org/resource/vg")
-    ns = Namespace("vg")
+    ns = Namespace('http://biohackathon.org/resource/vg#')
+    zoom_level.ns = Namespace("vg")
 
-    g.add((uri_ref, uri_ref, Literal(zoom_level)))
+    zoom_level.add_to_graph(g, ns) # here the magic happens
 
     p = folder.joinpath(part.ttl_filename)
     with p.open('w') as ttl:
